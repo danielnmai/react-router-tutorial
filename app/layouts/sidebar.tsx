@@ -1,16 +1,30 @@
-import { Form, Link, NavLink, Outlet } from "react-router";
+import { Form, Link, NavLink, Outlet, useNavigation, useSubmit } from "react-router";
 import { getContacts } from "../data";
 import type { Route } from "./+types/sidebar";
+import { useEffect } from "react";
 
-export async function loader() {
-  const contacts = await getContacts();
-  return { contacts };
+export async function loader({ request }: Route.LoaderArgs) {
+  const url = new URL(request.url);
+  const q = url.searchParams.get("q") || "";
+  const contacts = await getContacts(q);
+
+  return { contacts, q };
 }
 
 export default function SidebarLayout({
   loaderData,
 }: Route.ComponentProps) {
-  const { contacts } = loaderData;
+  const { contacts, q } = loaderData;
+  const navigation = useNavigation();
+  useEffect(() => {
+    const searchField = document.getElementById("q");
+    if(searchField instanceof HTMLInputElement) {
+      searchField.value = q || "";
+    }
+  }, [q]);
+
+  const submit = useSubmit();
+  const searching = navigation.location && new URLSearchParams(navigation.location.search).has("q")
 
   return (
     <>
@@ -22,14 +36,20 @@ export default function SidebarLayout({
           <Form id="search-form" role="search">
             <input
               aria-label="Search contacts"
+              className={searching ? "loading" : ""}
+              defaultValue={q || ''}
               id="q"
               name="q"
               placeholder="Search"
               type="search"
+              onChange={(event) => {
+                const isFirstSearch = q === null;
+                 submit(event.target.value, { replace: !isFirstSearch});
+                }}
             />
             <div
               aria-hidden
-              hidden={true}
+              hidden={!searching}
               id="search-spinner"
             />
           </Form>
@@ -75,7 +95,7 @@ export default function SidebarLayout({
           )}
         </nav>
       </div>
-      <div id="detail">
+      <div className={navigation.state === "loading" && !searching ? "loading" : ""} id="detail">
         <Outlet />
       </div>
     </>
